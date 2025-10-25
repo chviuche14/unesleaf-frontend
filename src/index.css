@@ -46,7 +46,7 @@
 
     .react-datepicker__day--selected,
     .react-datepicker__day--keyboard-selected {
-        background-color: #34d399 !important; /* bg-emerald-400 */
+        background-color: #02ffa6 !important; /* bg-emerald-400 */
         color: #0a0a0a !important; /* text-neutral-900 */
         font-weight: bold;
         border-radius: 0.5rem !important;
@@ -78,6 +78,7 @@
     margin: 0 !important;
     padding: 0;
     width: 250px;
+    color: #ffffff;
 }
 
 /* --- Triángulo --- */
@@ -92,6 +93,7 @@
     top: 8px;
     right: 8px;
 }
+
 .leaflet-popup-close-button:hover {
     color: #ffffff !important;
 }

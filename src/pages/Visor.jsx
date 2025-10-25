@@ -201,51 +201,81 @@ export default function Visor() {
     return () => clearTimeout(t);
   }, [sidebarOpen, map]);
 
-  useEffect(() => {
-    const fetchLayerList = async () => {
-      setIsLoading(true);
-      try {
-        const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:5001/api/layers", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) throw new Error("Error al cargar la lista de capas");
-        const data = await response.json();
-        setLayers(data);
-        const initialVisibility = {};
-        data.forEach((layer) => (initialVisibility[layer.id] = false));
-        setLayerVisibility(initialVisibility);
-      } catch (err) {
-        console.error("Error al obtener lista de capas:", err.message);
-      } finally {
-        setIsLoading(false);
-      }
+    useEffect(() => {
+        const fetchLayerList = async () => {
+            setIsLoading(true);
+            try {
+                const token = localStorage.getItem("token");
+                if (!token) {
+                    window.location.replace("/login");
+                    return;
+                }
+                const response = await fetch("http://localhost:5001/api/layers", {
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    },
+                });
+                if (!response.ok) {
+                    const text = await response.text().catch(() => "");
+                    console.error("Respuesta /api/layers:", response.status, text);
+                    if (response.status === 401 || response.status === 403) {
+                        localStorage.removeItem("token");
+                        window.location.replace("/login");
+                        return;
+                    }
+                    throw new Error("Error al cargar la lista de capas");
+                }
+                const data = await response.json();
+                setLayers(data);
+                const initialVisibility = {};
+                data.forEach((layer) => (initialVisibility[layer.id] = false));
+                setLayerVisibility(initialVisibility);
+            } catch (err) {
+                console.error("Error al obtener lista de capas:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchLayerList();
+    }, []);
+
+
+    const fetchLayerIfNeeded = async (layerId) => {
+        if (layerData[layerId]) return layerData[layerId];
+        try {
+            setLoadingLayerId(layerId);
+            const token = localStorage.getItem("token");
+            if (!token) {
+                window.location.replace("/login");
+                return null;
+            }
+            const response = await fetch(`http://localhost:5001/api/layers/${layerId}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                const errText = await response.text().catch(() => "");
+                console.error(`Respuesta /api/layers/${layerId}:`, response.status, errText);
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem("token");
+                    window.location.replace("/login");
+                    return null;
+                }
+                let errData = null;
+                try { errData = JSON.parse(errText); } catch {}
+                throw new Error(errData?.error || "Error al cargar datos de la capa");
+            }
+
+            const data = await response.json();
+            setLayerData((prev) => ({ ...prev, [layerId]: data.geojson_data }));
+            return data.geojson_data;
+        } finally {
+            setLoadingLayerId(null);
+        }
     };
-    fetchLayerList();
-  }, []);
 
-  const fetchLayerIfNeeded = async (layerId) => {
-    if (layerData[layerId]) return layerData[layerId];
-    try {
-      setLoadingLayerId(layerId);
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `http://localhost:5001/api/layers/${layerId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Error al cargar datos de la capa");
-      }
-      const data = await response.json();
-      setLayerData((prev) => ({ ...prev, [layerId]: data.geojson_data }));
-      return data.geojson_data;
-    } finally {
-      setLoadingLayerId(null);
-    }
-  };
 
-  const handleVisibilityChange = async (layerId) => {
+    const handleVisibilityChange = async (layerId) => {
     const newVisibility = !layerVisibility[layerId];
     setLayerVisibility((prev) => ({ ...prev, [layerId]: newVisibility }));
     if (newVisibility && !layerData[layerId]) {
@@ -448,6 +478,70 @@ export default function Visor() {
   // listas separadas para el panel
   const baseLayersList = layers.filter((l) => l.id >= 1 && l.id <= 4);
   const consultasList = layers.filter((l) => l.id >= 5);
+
+    const clusterStyles = {
+        1: { bg: '#1DCD9F', text: '#000000', border: '#1DCD9F' }, // verde, marfil
+        2: { bg: '#172642', text: '#1DCD9F', border: '#172642' }, // rosa, verde
+        // agrega más capas si las tienes...
+    };
+
+    const CONTINENT_COLORS = {
+        "Africa":        "#b5ccc5",
+        "Europe":        "#ff76ce",
+        "Asia":          "#6439ff",
+        "North America": "#f93827",
+        "South America": "#00ffb4",
+        "Australia":       "#ff6e00",
+        Antarctica:    "#94A3B8",
+    };
+
+    const getContinentName = (props = {}) => {
+        const raw =
+            props.continent ??
+            props.continente ??
+            props.continente_nombre ??
+            "";
+        return raw.toString().trim();
+    };
+
+    const continentStyle = (feature) => {
+        const name = getContinentName(feature?.properties);
+        const fill = CONTINENT_COLORS[name] || "#334155"; // fallback
+        return {
+            color: "#1f2937",     // borde gris oscuro
+            weight: 1,
+            opacity: 1,
+            fillColor: fill,
+            fillOpacity: 0.45,
+        };
+    };
+
+    const makeClusterIcon = (layerId) => (cluster) => {
+        const count = cluster.getChildCount();
+        // Tamaños según cantidad
+        const px = count < 10 ? 34 : count < 100 ? 42 : 50;
+
+        const { bg, text, border } = clusterStyles[layerId] || { bg: '#333', text: '#fff', border: '#111' };
+
+        return L.divIcon({
+            html: `
+      <div style="
+        width:${px}px;height:${px}px;
+        background:${bg};
+        color:${text};
+        border:2px solid ${border};
+        border-radius:50%;
+        display:flex;align-items:center;justify-content:center;
+        font-weight:600;
+        box-shadow:0 2px 6px rgba(0,0,0,.25);
+      ">
+        ${count}
+      </div>
+    `,
+            className: 'custom-cluster-icon', // por si quieres estilos CSS extra
+            iconSize: [px, px],
+        });
+    };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-neutral-900 text-white">
@@ -652,53 +746,63 @@ export default function Visor() {
             />
 
             {/* Sitios UNESCO (1) */}
-            {layerVisibility[1] && dataForLayer(1) && (
-              <MarkerClusterGroup key={`mcg-1-${filterToken(1)}`}>
-                <GeoJSON
-                  key={`geo-1-${filterToken(1)}`}
-                  data={dataForLayer(1)}
-                  pointToLayer={(feature, latlng) =>
-                    pointToLayer(feature, latlng, 1)
-                  }
-                  onEachFeature={(feature, layer) =>
-                    onEachFeature(feature, layer, 1)
-                  }
-                />
-              </MarkerClusterGroup>
-            )}
+              {layerVisibility[1] && dataForLayer(1) && (
+                  <MarkerClusterGroup
+                      key={`mcg-1-${filterToken(1)}`}
+                      iconCreateFunction={makeClusterIcon(1)}
+                      showCoverageOnHover={false}
+                      spiderfyOnMaxZoom
+                      chunkedLoading
+                      polygonOptions={{ color: clusterStyles[1].bg, weight: 2, opacity: 0.35 }}
+                  >
+                      <GeoJSON
+                          key={`geo-1-${filterToken(1)}`}
+                          data={dataForLayer(1)}
+                          pointToLayer={(feature, latlng) => pointToLayer(feature, latlng, 1)}
+                          onEachFeature={(feature, layer) => onEachFeature(feature, layer, 1)}
+                      />
+                  </MarkerClusterGroup>
+              )}
 
-            {/* Ciudades (2) */}
-            {layerVisibility[2] && dataForLayer(2) && (
-              <MarkerClusterGroup key={`mcg-2-${filterToken(2)}`}>
-                <GeoJSON
-                  key={`geo-2-${filterToken(2)}`}
-                  data={dataForLayer(2)}
-                  pointToLayer={(feature, latlng) =>
-                    pointToLayer(feature, latlng, 2)
-                  }
-                  onEachFeature={(feature, layer) =>
-                    onEachFeature(feature, layer, 2)
-                  }
-                />
-              </MarkerClusterGroup>
-            )}
+              {/* Ciudades (2) */}
+              {layerVisibility[2] && dataForLayer(2) && (
+                  <MarkerClusterGroup
+                      key={`mcg-2-${filterToken(2)}`}
+                      iconCreateFunction={makeClusterIcon(2)}
+                      showCoverageOnHover={false}
+                      spiderfyOnMaxZoom
+                      chunkedLoading
+                      polygonOptions={{ color: clusterStyles[2].bg, weight: 2, opacity: 0.35 }}
+                  >
+                      <GeoJSON
+                          key={`geo-2-${filterToken(2)}`}
+                          data={dataForLayer(2)}
+                          pointToLayer={(feature, latlng) => pointToLayer(feature, latlng, 2)}
+                          onEachFeature={(feature, layer) => onEachFeature(feature, layer, 2)}
+                      />
+                  </MarkerClusterGroup>
+              )}
 
             {/* Resto de capas y consultas que no son Point */}
             {layers.map((layer) => {
               if (layer.type === "Point") return null;
               const data = layerData[layer.id];
               if (!layerVisibility[layer.id] || !data) return null;
+
+              const isContinents = layer.id === 4;
+
               return (
-                <GeoJSON
-                  key={layer.id}
-                  data={data}
-                  style={() =>
-                    layer.id === 5 ? BUFFER_STYLE : getLayerStyle(layer.type)
-                  }
-                  onEachFeature={(feature, layerInMap) =>
-                    onEachFeature(feature, layerInMap, layer.id)
-                  }
-                />
+                  <GeoJSON
+                      key={layer.id}
+                      data={data}
+                      style={(feature) =>
+                          isContinents ? continentStyle(feature) :
+                              (layer.id === 5 ? BUFFER_STYLE : getLayerStyle(layer.type))
+                      }
+                      onEachFeature={(feature, layerInMap) => {
+                          onEachFeature(feature, layerInMap, layer.id);
+                      }}
+                  />
               );
             })}
           </MapContainer>
