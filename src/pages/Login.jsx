@@ -14,30 +14,39 @@ export default function Login() {
     const glassFormClass = "border border-white/20 bg-background/50 backdrop-blur-md shadow-2xl transition-all duration-300 hover:shadow-emerald-400/50";
     const inputClass = "w-full p-3 rounded-lg border border-white/30 bg-white/10 text-white placeholder-neutral-400 focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition";
 
-    const onSubmit = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError(null);
+const onSubmit = async (e) => {
+  e.preventDefault();
+  setIsLoading(true);
+  setError(null);
 
-        try {
-            const response = await axios.post(
-                "http://localhost:5001/api/auth/login",
-                {
-                    email: email,
-                    password: password,
-                }
-            );
+  // --- ESTA ES LA CORRECCIÓN ---
+  // 1. Lee la URL base de la API desde las variables de entorno de Vite
+  // En producción (Dokploy), será "http://148.230.94.222/api"
+  // En desarrollo (local), será "http://localhost:5001/api" (si lo configuras en un .env)
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
 
-            localStorage.setItem("token", response.data.token);
+  // 2. Construye la URL completa para el login
+  const LOGIN_URL = `${API_URL}/auth/login`;
+  // -----------------------------
 
-            navigate("/dashboard");
+  try {
+    const response = await axios.post(
+      LOGIN_URL, // <--- ¡AQUÍ ESTÁ EL CAMBIO!
+      {
+        email: email,
+        password: password,
+      }
+    );
 
-        } catch (err) {
-            const errorMsg = err.response?.data?.error || "Credenciales inválidas. Intente de nuevo.";
-            setError(errorMsg);
-            setIsLoading(false);
-        }
-    };
+    localStorage.setItem("token", response.data.token);
+    navigate("/dashboard");
+
+  } catch (err) {
+    const errorMsg = err.response?.data?.error || "Credenciales inválidas. Intente de nuevo.";
+    setError(errorMsg);
+    setIsLoading(false);
+  }
+};
 
     return (
         <div className="min-h-screen bg-neutral-900 text-white font-sans grid place-items-center relative overflow-hidden px-4">
