@@ -10,6 +10,9 @@ import {
   Filter,
 } from "lucide-react";
 
+// --- ✅ CORRECCIÓN 1: Definir la URL de la API aquí ---
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+
 function timeAgo(iso) {
   const d = new Date(iso);
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
@@ -35,7 +38,7 @@ export default function Reportes() {
 
   // Filtros UI
   const [tipo, setTipo] = useState("todos"); // todos | ciudad | unesco
-  const [from, setFrom] = useState("");      // YYYY-MM-DD
+  const [from, setFrom] = useState("");     // YYYY-MM-DD
   const [to, setTo] = useState("");
 
   const fetchHistorial = async () => {
@@ -43,9 +46,12 @@ export default function Reportes() {
       setLoading(true);
       setErr("");
       const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:5001/api/registros?limit=100", {
+
+      // --- ✅ CORRECCIÓN 2: Usar la variable API_URL ---
+      const res = await fetch(`${API_URL}/registros?limit=100`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setItems(json.items ?? []);
