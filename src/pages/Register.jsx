@@ -3,6 +3,9 @@ import { useState } from "react";
 import axios from "axios";
 import { ArrowRight, User, Lock, Mail, CheckCircle, ArrowLeft } from "lucide-react";
 
+// --- ✅ CORRECCIÓN 1: Definir la URL de la API aquí ---
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+
 export default function Register() {
     const navigate = useNavigate();
 
@@ -38,8 +41,9 @@ export default function Register() {
         setIsLoading(true);
 
         try {
+            // --- ✅ CORRECCIÓN 2: Usar la variable API_URL ---
             const response = await axios.post(
-                "http://localhost:5001/api/auth/register",
+                `${API_URL}/auth/register`, // <--- CAMBIO AQUÍ
                 {
                     username: formData.username,
                     email: formData.email,
