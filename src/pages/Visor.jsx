@@ -23,6 +23,8 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import Legend from "../components/Legend";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+
 const unescoIcon = new L.Icon({
   iconUrl: "/unesco.png",
   iconSize: [48, 48],
@@ -164,7 +166,7 @@ const SEARCH_ZOOM = 7;
 const saveRegistro = async (lng, lat, texto, tipo) => {
   try {
     const token = localStorage.getItem("token");
-    await fetch("http://localhost:5001/api/registros", {
+    await fetch(`${API_URL}/registros`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -210,7 +212,7 @@ export default function Visor() {
                     window.location.replace("/login");
                     return;
                 }
-                const response = await fetch("http://localhost:5001/api/layers", {
+                const response = await fetch(`${API_URL}/layers`, {
                     headers: {
                         "Authorization": `Bearer ${token}`
                     },
@@ -249,7 +251,7 @@ export default function Visor() {
                 window.location.replace("/login");
                 return null;
             }
-            const response = await fetch(`http://localhost:5001/api/layers/${layerId}`, {
+           const response = await fetch(`${API_URL}/layers/${layerId}`, {
                 headers: { "Authorization": `Bearer ${token}` }
             });
 
